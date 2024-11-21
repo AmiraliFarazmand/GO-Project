@@ -1,0 +1,34 @@
+// package main
+
+// import (
+// 	"log"
+// 	"proj/internal/app/db"
+// 	"proj/internal/app/models"
+// 	"proj/internal/app/validators"
+// 	// "gorm.io/gorm"
+// 	// "gorm.io/gorm"
+// )
+
+// func main() {
+// 	// Initialize database connection
+// 	database, err := db.Connect()
+// 	if err != nil {
+// 		log.Fatalf("Failed to connect to the database: %v", err)
+// 	}
+
+// 	// Run migrations
+// 	db.RunMigrations(database)
+
+// 	// Example usage: Validate and insert a DL record
+// 	dl := models.Dl{Code: "testDL", Title: "testDLTItle"}
+// 	if err := validators.ValidateDL(dl, database); err != nil {
+// 		log.Println("Validation error: %v", err)
+// 	} else if err := database.Create(&dl).Error; err != nil {
+// 		log.Printf("Failed to create DL: %v\n", err)
+// 	} else {
+// 		log.Println("DL record created successfully!")
+// 	}
+
+// 	log.Printf("mirese be inja")
+
+// }
