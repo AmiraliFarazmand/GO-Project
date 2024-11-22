@@ -23,6 +23,8 @@ func main() {
 	router := gin.Default()
 	dlRoutes := router.Group("/dl")
 	routes.RegisterDLRoutes(dlRoutes, database)
+	slRoutes := router.Group("/sl")
+	routes.RegisterSLRoutes(slRoutes, database)
 
 	router.Run(":8080")
 }

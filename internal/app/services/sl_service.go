@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"proj/internal/app/models"
 	"proj/internal/app/validators"
-
 	"gorm.io/gorm"
 )
 
@@ -67,7 +66,7 @@ func UpdateSL(sl models.SL, db *gorm.DB) error {
 	return nil
 }
 
-func DeleteSL(id int, db *gorm.DB) error {
+func DeleteSL(id int,version float64, db *gorm.DB) error {
 	if hasReferencesSL(id, db) {
 		return fmt.Errorf(">ERR DeleteSL(%d), it has reference somewhere", id)
 	}
@@ -76,6 +75,9 @@ func DeleteSL(id int, db *gorm.DB) error {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf(">ERR DeleteSL(%d), SL don't exist", id)
 		}
+	}
+	if sl.Version!=version{
+		return errors.New("SL.version is not what it should be")
 	}
 	if err := db.Delete(&models.SL{}, id).Error; err != nil {
 		return errors.Join(fmt.Errorf(">ERR DeleteSL(%d), Error on deleting instance", id), err)
