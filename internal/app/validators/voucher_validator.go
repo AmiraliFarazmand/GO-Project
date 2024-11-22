@@ -2,32 +2,30 @@ package validators
 
 import (
 	"errors"
-	"gorm.io/gorm"
+	"fmt"
 	"proj/internal/app/models"
+	"gorm.io/gorm"
 )
-func checkUniquenessVoucher(vouch models.Voucher, db *gorm.DB) error {
+
+func CheckUniquenessVoucher(vouch models.Voucher, db *gorm.DB) error {
 	var existingVouch models.Voucher
 
-	// Check if Code or Title already exists in the database
 	if err := db.Where("number = ?", vouch.Number).First(&existingVouch).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// No duplicate found
 			return nil
 		}
-		// Query error
-		return err
+		return errors.Join(fmt.Errorf(">ERR CheckUniquenessVoucher(v), ORM level error"), err)
 	}
-	return errors.New("duplicate number for Voucher")
+	return errors.New(">ERR CheckUniquenessVoucher(v), duplicate number for Voucher")
 }
+
 func ValidateVoucher(voucher models.Voucher, db *gorm.DB) error {
 	if voucher.Number == "" {
-		return errors.New("number cannot be empty")
+		return errors.New(">ERR ValidateVoucher(v), number cannot be empty")
 	}
 	if len(voucher.Number) > 64 {
-		return errors.New("number cannot exceed 64 characters")
+		return errors.New(">ERR ValidateVoucher(v), number cannot exceed 64 characters")
 	}
-	if err:= checkUniquenessVoucher(voucher, db); err!=nil{
-		return err
-	}
+
 	return nil
 }

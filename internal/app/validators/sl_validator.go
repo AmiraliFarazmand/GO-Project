@@ -2,43 +2,35 @@ package validators
 
 import (
 	"errors"
-	"gorm.io/gorm"
+	"fmt"
 	"proj/internal/app/models"
+	"gorm.io/gorm"
 )
 
-func checkUniquenessSL(sl models.SL, db *gorm.DB) error {
-	var existingSl models.SL
+func CheckUniquenessSL(sl models.SL, db *gorm.DB) error {
+	var existingSL models.SL
 
-	// Check if Code or Title already exists in the database
-	if err := db.Where("code = ? OR title = ?", sl.Code, sl.Title).First(&existingSl).Error; err != nil {
+	if err := db.Where("code = ? OR title = ?", sl.Code, sl.Title).First(&existingSL).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			// No duplicate found
 			return nil
 		}
-		// Query error
-		return err
+		return errors.Join(fmt.Errorf(">ERR CheckUniquenessSL(sl)"), err)
 	}
-
-	// Duplicate found
-	return errors.New("duplicate code or title found for SL")
+	return errors.New(">ERR CheckUniquenessSL(sl), duplicate code or title found for SL")
 }
-
 
 func ValidateSL(sl models.SL, db *gorm.DB) error {
 	if sl.Code == "" {
-		return errors.New("code cannot be empty")
+		return errors.New(">ERR ValidateSL(sl), code cannot be empty")
 	}
 	if len(sl.Code) > 64 {
-		return errors.New("code cannot exceed 64 characters")
+		return errors.New(">ERR ValidateSL(sl), code cannot exceed 64 characters")
 	}
 	if sl.Title == "" {
-		return errors.New("title cannot be empty")
+		return errors.New(">ERR ValidateSL(sl), title cannot be empty")
 	}
 	if len(sl.Title) > 64 {
-		return errors.New("title cannot exceed 64 characters")
-	}
-	if err := checkUniquenessSL(sl,db); err!=nil{
-		return err
+		return errors.New(">ERR ValidateSL(sl), title cannot exceed 64 characters")
 	}
 	return nil
 }
