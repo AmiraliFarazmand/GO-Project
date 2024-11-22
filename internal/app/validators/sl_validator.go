@@ -10,7 +10,7 @@ import (
 func CheckUniquenessSL(sl models.SL, db *gorm.DB) error {
 	var existingSL models.SL
 
-	if err := db.Where("code = ? OR title = ?", sl.Code, sl.Title).First(&existingSL).Error; err != nil {
+	if err := db.Where("id<>? AND (code = ? OR title = ?)",sl.ID, sl.Code, sl.Title).First(&existingSL).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil
 		}

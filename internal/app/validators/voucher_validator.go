@@ -10,7 +10,7 @@ import (
 func CheckUniquenessVoucher(vouch models.Voucher, db *gorm.DB) error {
 	var existingVouch models.Voucher
 
-	if err := db.Where("number = ?", vouch.Number).First(&existingVouch).Error; err != nil {
+	if err := db.Where("id<>? AND number = ?",vouch.ID, vouch.Number).First(&existingVouch).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil
 		}

@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"proj/internal/app/models"
 	"proj/internal/app/validators"
+
 	"gorm.io/gorm"
 )
 
 func CreateDL(dl models.DL, db *gorm.DB) error {
 	if err := validators.CheckUniquenessDL(dl, db); err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), faild at checking uniqueness",dl),err)
+		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), faild at checking uniqueness", dl), err)
 	}
 	if err := validators.ValidateDL(dl, db); err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), failed at validation",dl),err)
+		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), failed at validation", dl), err)
 	}
 
 	if err := db.Create(&dl).Error; err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), failed creating instance",dl),err)
+		return errors.Join(fmt.Errorf(">ERR CreateDL(%v), failed creating instance", dl), err)
 	}
 
 	return nil
@@ -60,13 +61,17 @@ func UpdateDL(dl models.DL, db *gorm.DB) error {
 	return nil
 }
 
-func DeleteDL(id int, db *gorm.DB) error {
+func DeleteDL(id int, version float64, db *gorm.DB) error {
 	if hasReferences(id, db) {
 		return fmt.Errorf(">ERR DeleteDL(%d), referenced elsewhere", id)
 	}
 	var dl models.DL
-	if err := db.First(&dl, id).Error; err != nil {
-		return errors.Join(fmt.Errorf(">ERR DeleteDL(%v), not found", dl), err)
+	var err error
+	if dl, err = GetDL(id, db); err != nil {
+		return errors.Join(fmt.Errorf(">ERR GetDL(%d), not found", id), err)
+	}
+	if dl.Version != version {
+		return errors.New("versions don't match")
 	}
 	if err := db.Delete(&models.DL{}, id).Error; err != nil {
 		return errors.Join(fmt.Errorf(">ERR DeleteDL(%d), couldn't delete row ", id), err)

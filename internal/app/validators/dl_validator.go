@@ -10,7 +10,7 @@ import (
 func CheckUniquenessDL(dl models.DL, db *gorm.DB) error {
 	var existingDL models.DL
 
-	if err := db.Where("code = ? OR title = ?", dl.Code, dl.Title).First(&existingDL).Error; err != nil {
+	if err := db.Where("id <>? AND (code = ? OR title = ?) ",dl.ID, dl.Code, dl.Title).First(&existingDL).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil
 		}
