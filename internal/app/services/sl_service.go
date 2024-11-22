@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"proj/internal/app/models"
 	"proj/internal/app/validators"
+
 	"gorm.io/gorm"
 )
 
@@ -12,7 +13,7 @@ func CreateSL(sl models.SL, db *gorm.DB) error {
 	if err := validators.ValidateSL(sl, db); err != nil {
 		return errors.Join(fmt.Errorf(">ERR CreateSL(%v), faild at validating", sl), err)
 	}
-	
+
 	if err := validators.CheckUniquenessSL(sl, db); err != nil {
 		return errors.Join(fmt.Errorf(">ERR CreateSL(%v), faild at checking uniqueness", sl), err)
 	}
@@ -24,7 +25,6 @@ func CreateSL(sl models.SL, db *gorm.DB) error {
 	return nil
 }
 
-
 func GetSL(id int, db *gorm.DB) (models.SL, error) {
 	var sl models.SL
 	if err := db.First(&sl, id).Error; err != nil {
@@ -35,9 +35,8 @@ func GetSL(id int, db *gorm.DB) (models.SL, error) {
 		return models.SL{},
 			errors.Join(fmt.Errorf(">ERR GetSL(%d), Uncommon error", id), err)
 	}
-	return sl, nil	
+	return sl, nil
 }
-
 
 func UpdateSL(sl models.SL, db *gorm.DB) error {
 	if err := validators.ValidateSL(sl, db); err != nil {
@@ -68,20 +67,22 @@ func UpdateSL(sl models.SL, db *gorm.DB) error {
 	return nil
 }
 
-
-
 func DeleteSL(id int, db *gorm.DB) error {
 	if hasReferencesSL(id, db) {
-		return fmt.Errorf(">ERR DeleteSL(%d), it has reference somewhere",id)
+		return fmt.Errorf(">ERR DeleteSL(%d), it has reference somewhere", id)
 	}
-
+	var sl models.SL
+	if err := db.First(&sl, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf(">ERR DeleteSL(%d), SL don't exist", id)
+		}
+	}
 	if err := db.Delete(&models.SL{}, id).Error; err != nil {
-		return errors.Join(fmt.Errorf(">ERR DeleteSL(%d), Error on deleting instance",id),err)
+		return errors.Join(fmt.Errorf(">ERR DeleteSL(%d), Error on deleting instance", id), err)
 	}
 
 	return nil
 }
-
 func hasReferencesSL(id int, db *gorm.DB) bool {
 	var count int64
 	db.Model(&models.VoucherItem{}).Where("sl_id = ?", id).Count(&count)

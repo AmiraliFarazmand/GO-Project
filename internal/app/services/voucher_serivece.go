@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"proj/internal/app/models"
 	"proj/internal/app/validators"
+
 	"gorm.io/gorm"
 )
 
@@ -63,6 +64,13 @@ func DeleteVoucher(id int, db *gorm.DB) error {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf(">ERR DeleteVoucher(%v), voucher not found to update", id)
 		}
+		var voucher models.Voucher
+		if err := db.First(&voucher, id).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf(">ERR GetVoucher(%d), voucher don't exist", id)
+			}
+		}
+
 		return errors.Join(fmt.Errorf(">ERR UpdateVoucher(%v), vfailed to delete voucher", id), err)
 	}
 

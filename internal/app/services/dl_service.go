@@ -62,11 +62,14 @@ func UpdateDL(dl models.DL, db *gorm.DB) error {
 
 func DeleteDL(id int, db *gorm.DB) error {
 	if hasReferences(id, db) {
-		return fmt.Errorf(">ERR DeleteDL(%d, referenced elsewhere", id)
+		return fmt.Errorf(">ERR DeleteDL(%d), referenced elsewhere", id)
 	}
-
+	var dl models.DL
+	if err := db.First(&dl, id).Error; err != nil {
+		return errors.Join(fmt.Errorf(">ERR DeleteDL(%v), not found", dl), err)
+	}
 	if err := db.Delete(&models.DL{}, id).Error; err != nil {
-		return errors.Join(fmt.Errorf(">ERR DeleteDL(%d, referenced elsewhere", id), err)
+		return errors.Join(fmt.Errorf(">ERR DeleteDL(%d), couldn't delete row ", id), err)
 	}
 
 	return nil
