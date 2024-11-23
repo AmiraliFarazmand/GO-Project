@@ -25,6 +25,8 @@ func main() {
 	routes.RegisterDLRoutes(dlRoutes, database)
 	slRoutes := router.Group("/sl")
 	routes.RegisterSLRoutes(slRoutes, database)
+	vRoutes := router.Group("/voucher")
+	routes.RegisterVoucherRoutes(vRoutes, database)
 
 	router.Run(":8080")
 }

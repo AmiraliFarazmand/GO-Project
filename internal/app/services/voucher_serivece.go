@@ -59,19 +59,19 @@ func UpdateVoucher(voucher models.Voucher, db *gorm.DB) error {
 	return nil
 }
 
-func DeleteVoucher(id int, db *gorm.DB) error {
-	if err := db.Delete(&models.Voucher{}, id).Error; err != nil {
+func DeleteVoucher(id int,version float64, db *gorm.DB) error {
+	var v models.Voucher
+	if err := db.First(&v, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf(">ERR DeleteVoucher(%v), voucher not found to update", id)
+			return fmt.Errorf(">ERR DeleteSL(%d), SL don't exist", id)
 		}
-		var voucher models.Voucher
-		if err := db.First(&voucher, id).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf(">ERR GetVoucher(%d), voucher don't exist", id)
-			}
-		}
+	}
+	if v.Version!=version{
+		return errors.New("SL.version is not what it should be")
+	}
 
-		return errors.Join(fmt.Errorf(">ERR UpdateVoucher(%v), vfailed to delete voucher", id), err)
+	if err := db.Delete(&models.Voucher{}, id).Error; err != nil {
+		return errors.Join(fmt.Errorf(">ERR UpdateVoucher(%d), failed to delete voucher", id), err)
 	}
 
 	return nil
