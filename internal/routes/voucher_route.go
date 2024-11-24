@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"fmt"
 	"net/http"
 	"proj/internal/app/models"
 	"proj/internal/app/services"
@@ -33,7 +32,6 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 			Credit float64 `json:"credit"`
 		} `json:"items"`
 	}
-	errorsOnResponse := gin.H{}
 	// Bind JSON request
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
@@ -54,7 +52,6 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	tx.Last(&currVoucher)
 	var voucherItems []models.VoucherItem
 	for _, item := range request.Items {
 		voucherItems = append(voucherItems, models.VoucherItem{
@@ -68,38 +65,29 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 
 	for _, item := range voucherItems {
 		if err := services.CreateVoucherItem(item, tx); err != nil {
-			tempkey := fmt.Sprintf("insertItem(%v)", item)
-			errorsOnResponse[tempkey] = err.Error()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			tx.Rollback()
+			return
 		}
 	}
 
 	// Check if voucherr is balanced and have <500 items
 	if finalCheckRes, err := finalCheck(currVoucher.ID, tx); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on finalCheck()",
-			"errors": errorsOnResponse})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ROLLBACK error" + err.Error()})
 		return
 	} else if !finalCheckRes {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced" +
-			" or having more than 500 items",
-			"errors": errorsOnResponse})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "voucher failed on checking balance or having right amount of items"})
 		return
 	}
 
 	//Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		errorsOnResponse["Failed at commiting transaction"] = "0"
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ERROR on tx.Commit()" + err.Error()})
 	}
 
-	if len(errorsOnResponse) == 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "Voucher created successfully"})
-		return
-	}
-
-	c.JSON(http.StatusInternalServerError,
-		gin.H{"message": "Voucher created successfully with some errors",
-			"errors": errorsOnResponse})
+	c.JSON(http.StatusOK, gin.H{"message": "Voucher created successfully"})
 }
 
 func deleteVoucher(c *gin.Context, db *gorm.DB) {
@@ -147,8 +135,9 @@ func getVoucher(c *gin.Context, db *gorm.DB) {
 		tempVI, _ := services.GetVoucherItem(item.ID, db)
 		responseVItems = append(responseVItems, tempVI)
 	}
-	c.JSON(http.StatusOK, gin.H{"voucher": voucher,
-		"items": responseVItems})
+	c.JSON(http.StatusOK,
+		gin.H{"voucher": voucher,
+			"items": responseVItems})
 
 }
 
@@ -176,7 +165,6 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 			Deleted []int `json:"deleted"`
 		} `json:"items"`
 	}
-	errorsOnResponse := gin.H{}
 	// Bind JSON request
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
@@ -224,49 +212,39 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 	// call service for items
 	for _, item := range inserted {
 		if err := services.CreateVoucherItem(item, tx); err != nil {
-			tempKey := fmt.Sprintf("insertItem(%v)", item)
-			errorsOnResponse[tempKey] = err.Error()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 	}
 	for _, item := range updated {
 		if err := services.UpdateVoucherItem(item, tx); err != nil {
-			tempKey := fmt.Sprintf("updateItem(%v)", item)
-			errorsOnResponse[tempKey] = err.Error()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 	}
 	for _, item := range request.Items.Deleted {
 		if err := services.DeleteVoucherItem(item, tx); err != nil {
-			tempKey := fmt.Sprintf("deleteItem(%v)", item)
-			errorsOnResponse[tempKey] = err.Error()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
 		}
 	}
 
 	// Check if voucherr is balanced and have <500 items
 	if finalCheckRes, err := finalCheck(request.Voucher.ID, tx); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on finalCheck()",
-			"errors": errorsOnResponse})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "ROLLBACK error " + err.Error()})
 		return
 	} else if !finalCheckRes {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced" +
-			" or having more than 500 items",
-			"errors": errorsOnResponse})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "voucher failed on checking balance or having right amount of items"})
 		return
 	}
 	//Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		errorsOnResponse["Failed at commiting transaction"] = "0"
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "tx.Commit error " + err.Error()})
 	}
 
-	if len(errorsOnResponse) == 0 {
-		c.JSON(http.StatusOK, gin.H{"message": "Voucher updated successfully"})
-		return
-	}
-
-	c.JSON(http.StatusInternalServerError,
-		gin.H{"message": "Voucher updated successfully with some errors",
-			"errors": errorsOnResponse})
+	c.JSON(http.StatusOK, gin.H{"message": "voucher updated succesfully"})
 }
 
 func finalCheck(vId int, tx *gorm.DB) (bool, error) {
