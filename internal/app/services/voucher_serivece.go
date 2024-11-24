@@ -9,19 +9,23 @@ import (
 	"gorm.io/gorm"
 )
 
-func CreateVoucher(voucher models.Voucher, db *gorm.DB) error {
+func CreateVoucher(voucher models.Voucher, db *gorm.DB) (models.Voucher, error) {
+	emptyVoucher := models.Voucher{}
 	if err := validators.CheckUniquenessVoucher(voucher, db); err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at checking uniqueness", voucher), err)
+		return emptyVoucher, errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at checking uniqueness",
+			voucher), err)
 	}
 	if err := validators.ValidateVoucher(voucher, db); err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at validating", voucher), err)
+		return emptyVoucher, errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at validating",
+			voucher), err)
 	}
 
 	if err := db.Create(&voucher).Error; err != nil {
-		return errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at creating instance", voucher), err)
+		return emptyVoucher, errors.Join(fmt.Errorf(">ERR CreateVoucher(%v), faild at creating instance",
+			voucher), err)
 	}
 
-	return nil
+	return voucher, nil
 }
 
 func GetVoucher(id int, db *gorm.DB) (models.Voucher, error) {
@@ -59,14 +63,23 @@ func UpdateVoucher(voucher models.Voucher, db *gorm.DB) error {
 	return nil
 }
 
-func DeleteVoucher(id int,version float64, db *gorm.DB) error {
+func DeleteVoucher(id int, version float64, db *gorm.DB) error {
 	var v models.Voucher
 	if err := db.First(&v, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf(">ERR DeleteSL(%d), SL don't exist", id)
 		}
 	}
-	if v.Version!=version{
+
+	var vItems []models.VoucherItem
+	if err := db.Where("voucher_id = ?", id).Find(&vItems).Error; err != nil {
+		return err
+	}
+	for _, item := range vItems {
+		DeleteVoucherItem(item.ID, db)
+	}
+
+	if v.Version != version {
 		return errors.New("SL.version is not what it should be")
 	}
 

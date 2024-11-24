@@ -33,7 +33,7 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 			Credit float64 `json:"credit"`
 		} `json:"items"`
 	}
-	response := gin.H{}
+	errorsOnResponse := gin.H{}
 	// Bind JSON request
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
@@ -47,12 +47,13 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 	}
 
 	// Call service
-	if err := services.CreateVoucher(voucher, tx); err != nil {
+	var currVoucher models.Voucher
+	var err error
+	if currVoucher, err = services.CreateVoucher(voucher, tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	var currVoucher models.Voucher
 	tx.Last(&currVoucher)
 	var voucherItems []models.VoucherItem
 	for _, item := range request.Items {
@@ -68,42 +69,37 @@ func createVoucher(c *gin.Context, db *gorm.DB) {
 	for _, item := range voucherItems {
 		if err := services.CreateVoucherItem(item, tx); err != nil {
 			tempkey := fmt.Sprintf("insertItem(%v)", item)
-			response[tempkey] = err.Error()
+			errorsOnResponse[tempkey] = err.Error()
 		}
 	}
-	// check number of items
-	if check, err := validators.CheckItemsNumber(currVoucher.ID, tx); err != nil {
+
+	// Check if voucherr is balanced and have <500 items
+	if finalCheckRes, err := finalCheck(currVoucher.ID, tx); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to error on CheckItemsNumber"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on finalCheck()",
+			"errors": errorsOnResponse})
 		return
-	} else if !check {
+	} else if !finalCheckRes {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to invalid number of items"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced" +
+			" or having more than 500 items",
+			"errors": errorsOnResponse})
 		return
 	}
 
-	// Check if voucherr is balanced
-	if isBalanced, err := validators.CheckBalance(currVoucher.ID, tx); err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on CheckBalance()"})
-		return
-	} else if !isBalanced {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced"})
-		return
-	}
 	//Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		response["Failed at commiting transaction"] = "0"
+		errorsOnResponse["Failed at commiting transaction"] = "0"
 	}
 
-	if len(response) == 0 {
+	if len(errorsOnResponse) == 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "Voucher created successfully"})
+		return
 	}
 
 	c.JSON(http.StatusInternalServerError,
 		gin.H{"message": "Voucher created successfully with some errors",
-			"errors": response})
+			"errors": errorsOnResponse})
 }
 
 func deleteVoucher(c *gin.Context, db *gorm.DB) {
@@ -134,14 +130,26 @@ func getVoucher(c *gin.Context, db *gorm.DB) {
 		return
 	}
 
-	// Call service
+	// Call service for voucher
 	voucher, err := services.GetVoucher(id, db)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, voucher)
+	var vItems []models.VoucherItem
+	var responseVItems []models.VoucherItem
+	if err := db.Where("voucher_id = ?", id).Find(&vItems).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	for _, item := range vItems {
+		tempVI, _ := services.GetVoucherItem(item.ID, db)
+		responseVItems = append(responseVItems, tempVI)
+	}
+	c.JSON(http.StatusOK, gin.H{"voucher": voucher,
+		"items": responseVItems})
+
 }
 
 func updateVoucher(c *gin.Context, db *gorm.DB) {
@@ -168,7 +176,7 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 			Deleted []int `json:"deleted"`
 		} `json:"items"`
 	}
-	response := gin.H{}
+	errorsOnResponse := gin.H{}
 	// Bind JSON request
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON format"})
@@ -206,62 +214,69 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 		})
 	}
 
-	//Transaction begind
+	//Transaction begins
 	tx := db.Begin()
-	// Call service
+	// Call service for voucher
 	if err := services.UpdateVoucher(voucher, tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	// call service for items
 	for _, item := range inserted {
 		if err := services.CreateVoucherItem(item, tx); err != nil {
 			tempKey := fmt.Sprintf("insertItem(%v)", item)
-			response[tempKey] = err.Error()
+			errorsOnResponse[tempKey] = err.Error()
 		}
 	}
 	for _, item := range updated {
 		if err := services.UpdateVoucherItem(item, tx); err != nil {
 			tempKey := fmt.Sprintf("updateItem(%v)", item)
-			response[tempKey] = err.Error()
+			errorsOnResponse[tempKey] = err.Error()
 		}
 	}
 	for _, item := range request.Items.Deleted {
 		if err := services.DeleteVoucherItem(item, tx); err != nil {
 			tempKey := fmt.Sprintf("deleteItem(%v)", item)
-			response[tempKey] = err.Error()
+			errorsOnResponse[tempKey] = err.Error()
 		}
 	}
-	// check number of items
-	if check, err := validators.CheckItemsNumber(request.Voucher.ID, tx); err != nil {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to error on CheckItemsNumber"})
-		return
-	} else if !check {
-		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to invalid number of items"})
-		return
-	}
 
-	// Check if voucherr is balanced
-	if isBalanced, err := validators.CheckBalance(request.Voucher.ID, tx); err != nil {
+	// Check if voucherr is balanced and have <500 items
+	if finalCheckRes, err := finalCheck(request.Voucher.ID, tx); err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on CheckBalance()"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to an error on finalCheck()",
+			"errors": errorsOnResponse})
 		return
-	} else if !isBalanced {
+	} else if !finalCheckRes {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced"})
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "ROLLBACK occured due to not being balanced" +
+			" or having more than 500 items",
+			"errors": errorsOnResponse})
 		return
 	}
 	//Commit transaction
 	if err := tx.Commit().Error; err != nil {
-		response["Failed at commiting transaction"] = "0"
+		errorsOnResponse["Failed at commiting transaction"] = "0"
 	}
 
-	if len(response) == 0 {
+	if len(errorsOnResponse) == 0 {
 		c.JSON(http.StatusOK, gin.H{"message": "Voucher updated successfully"})
+		return
 	}
 
 	c.JSON(http.StatusInternalServerError,
 		gin.H{"message": "Voucher updated successfully with some errors",
-			"errors": response})
+			"errors": errorsOnResponse})
+}
+
+func finalCheck(vId int, tx *gorm.DB) (bool, error) {
+	var isBalanced, check bool
+	var err error
+	if isBalanced, err = validators.CheckBalance(vId, tx); err != nil {
+		return false, err
+	}
+	if check, err = validators.CheckItemsNumber(vId, tx); err != nil {
+		return false, err
+	}
+	return isBalanced && check, err
 }

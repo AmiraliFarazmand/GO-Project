@@ -2,13 +2,14 @@ package main
 
 import (
 	"log"
-	"proj/internal/routes"
 	"proj/internal/app/db"
+	"proj/internal/routes"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-var database *gorm.DB // Assume initialized as described previously
+var database *gorm.DB
 
 func main() {
 	var err error
@@ -19,7 +20,8 @@ func main() {
 	}
 
 	// Run migrations
-	db.RunMigrations(database)	
+	db.RunMigrations(database)
+
 	router := gin.Default()
 	dlRoutes := router.Group("/dl")
 	routes.RegisterDLRoutes(dlRoutes, database)
