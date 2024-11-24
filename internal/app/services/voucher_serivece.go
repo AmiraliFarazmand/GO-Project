@@ -76,7 +76,7 @@ func DeleteVoucher(id int, version float64, db *gorm.DB) error {
 		return err
 	}
 	for _, item := range vItems {
-		DeleteVoucherItem(item.ID, db)
+		DeleteVoucherItem(item.ID, v.ID, db)
 	}
 
 	if v.Version != version {

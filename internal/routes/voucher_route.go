@@ -217,13 +217,13 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 		}
 	}
 	for _, item := range updated {
-		if err := services.UpdateVoucherItem(item, tx); err != nil {
+		if err := services.UpdateVoucherItem(item,request.Voucher.ID, tx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
 	}
 	for _, item := range request.Items.Deleted {
-		if err := services.DeleteVoucherItem(item, tx); err != nil {
+		if err := services.DeleteVoucherItem(item,request.Voucher.ID, tx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
