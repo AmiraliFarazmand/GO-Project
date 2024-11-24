@@ -207,24 +207,28 @@ func updateVoucher(c *gin.Context, db *gorm.DB) {
 	// Call service for voucher
 	if err := services.UpdateVoucher(voucher, tx); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		tx.Rollback()
 		return
 	}
 	// call service for items
 	for _, item := range inserted {
 		if err := services.CreateVoucherItem(item, tx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			tx.Rollback()
 			return
 		}
 	}
 	for _, item := range updated {
-		if err := services.UpdateVoucherItem(item,request.Voucher.ID, tx); err != nil {
+		if err := services.UpdateVoucherItem(item, request.Voucher.ID, tx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			tx.Rollback()
 			return
 		}
 	}
 	for _, item := range request.Items.Deleted {
-		if err := services.DeleteVoucherItem(item,request.Voucher.ID, tx); err != nil {
+		if err := services.DeleteVoucherItem(item, request.Voucher.ID, tx); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			tx.Rollback()
 			return
 		}
 	}

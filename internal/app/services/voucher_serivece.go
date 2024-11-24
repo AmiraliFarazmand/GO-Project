@@ -75,14 +75,12 @@ func DeleteVoucher(id int, version float64, db *gorm.DB) error {
 	if err := db.Where("voucher_id = ?", id).Find(&vItems).Error; err != nil {
 		return err
 	}
+	if v.Version != version {
+		return errors.New("v.version is not what it should be")
+	}
 	for _, item := range vItems {
 		DeleteVoucherItem(item.ID, v.ID, db)
 	}
-
-	if v.Version != version {
-		return errors.New("SL.version is not what it should be")
-	}
-
 	if err := db.Delete(&models.Voucher{}, id).Error; err != nil {
 		return errors.Join(fmt.Errorf(">ERR UpdateVoucher(%d), failed to delete voucher", id), err)
 	}
